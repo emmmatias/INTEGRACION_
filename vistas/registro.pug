@@ -1,0 +1,86 @@
+doctype html
+html
+    head
+        title= title
+    body
+        h1= formTitle
+        form#miform(action=formaction, method='post')
+            div
+                input(type="text", value=id, name='id' hidden)
+                label(for='contacto_tienda') contacto_tienda:
+                input#contacto_tienda(type='text', name='contacto_tienda', placeholder='Nombre de la tienda', required)
+                br
+                label(for='direccion') Direccion:
+                input#direccion(type='text', name='direccion', placeholder=direccion, value=direccion, required)
+                br
+                label(for='email') Email:
+                input#email(type='email', name='email', placeholder=email, value=email, required)
+                br
+                label(for='cp_tienda') Código postal:
+                input#cp_tienda(type='text', name='cp_tienda', placeholder='Código Postal', value='No definido', required)
+                br
+                label(for='whatsapp') WhatsApp:
+                input#whatsapp(type='text', name='whatsapp', placeholder=whatsapp, value=whatsapp, required)
+                br
+                label(for='telefono') Telefono:
+                input#telefono(type='text', name='telefono', placeholder=telefono, value=telefono, required)
+                br
+                label(for='metodo_pago') metodo_pago:
+                input#metodo_pago(type='text', name='metodo_pago', placeholder='Tu método de pago', required)
+                br
+                button(type='submit') Submit
+        p Los datos serán utilizados para poder dar de alta su usuario en nuestro sistema, la dirección debe ser la de retiro de los paquetes. Como por ejemplo 'av santa fe 4465, piso, depto, localidad'
+    script.
+        let form = document.getElementById('miform')
+
+        function validarNumero(telefono) {
+            const regex = /^\+\d{13}$/;
+            return regex.test(telefono);
+        }
+
+        function validarEmail(email) {
+            const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+            return emailRegex.test(email);
+        }
+        form.addEventListener('submit', (event) => {
+            event.preventDefault()
+            let validador = 0
+            let metodo_pago = document.querySelector('#metodo_pago').value
+            let telefono = document.querySelector('#telefono').value
+            let whatsapp = document.querySelector('#whatsapp').value
+            let cp_tienda = document.querySelector('#cp_tienda').value
+            let contacto_tienda = document.querySelector('#contacto_tienda').value
+            let direccion = document.querySelector('#direccion').value
+            let email = document.querySelector('#email').value
+    
+            validarNumero(telefono) ? validador = validador + 1 :alert('El numero debe constar comenzar con +549 sin espacios')
+            direccion != 'No definido' && direccion != '' ? validador = validador + 1 :alert('El numero debe constar comenzar con +549 sin espacios')
+            validarNumero(whatsapp) ? validador = validador + 1 :alert('El numero debe constar comenzar con +549 sin espacios')
+            validarEmail(email) ? validador = validador + 1 :alert('El numero debe constar comenzar con +549 sin espacios')
+            
+            let body = {
+                        telefono,
+                        whatsapp,
+                        metodo_pago,
+                        direccion,
+                        cp_tienda,
+                        contacto_tienda,
+                        email
+                        }
+            console.log(body)
+            if(validador == 4){
+                fetch('/registro', {
+                    method: 'POST',
+                    body: JSON.stringify(body)
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+            }else{
+                alert('Error al enviar el formulario')
+            }
+
+            validador == 4 ? this.submit : alert('Error al enviar el formulario')
+
+            })
+        
