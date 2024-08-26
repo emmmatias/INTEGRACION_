@@ -9,10 +9,10 @@ import path from "path";
 import https from 'https';
 import fs from 'fs';
 
-const options = {
+/*const options = {
   key: fs.readFileSync(path.join(__dirname, 'localhost.key')),
   cert: fs.readFileSync(path.join(__dirname, 'localhost.crt'))
-};
+};*/
 
 dotenv.config({
   path: path.resolve(".env"),

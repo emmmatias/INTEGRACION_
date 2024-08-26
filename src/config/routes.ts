@@ -6,7 +6,9 @@ import { ProductController } from "@features/product";
 import  sqlite3 from "sqlite3";
 import { error } from "console";
 import csv from 'csv-parser'
-import fs from 'fs'
+import fs, { access } from 'fs'
+import { json } from "stream/consumers";
+import { arrayBuffer } from "node:stream/consumers";
 
 interface rows {
   user_id: Text,
@@ -45,83 +47,98 @@ routes.get('/',(req, res) => {
 res.send('hola')
 })
 
-routes.get('/', (req, res) => {
-res.send('hola')
-})
-
-
-routes.get("/reservas", (req, res) => {
+routes.get("/reservas", (req, res) =>{
   console.log(req.query)
-  let ids = Array.isArray(req.query.id) ? req.query.id : [req.query.id]
-  console.log(ids)
-  let pedidos : any = []
-  let valores : any = []
-  let calc = () => {
-    return new Promise<void> ( (resolve, reject) => { user_db.get('SELECT user_id, access_token, contacto_tienda, direccion, whatsapp, saldo, metodo_pago FROM users WHERE user_id = ?', [req.query.store], async (error: any, row: any)=> {
-    if(!error){
-      console.log(row)
-      const data_user = {
-        saldo: Number(row.saldo),
-        metodo_pago: row.metodo_pago,
-        user_id: row.user_id,
-        contacto_tienda: row.contacto_tienda,
-        access_token: row.access_token,
-        direccion: row.direccion,
-        whatsapp: row.whatsapp
-      }
-       ids.forEach(async element => {
-        await fetch(`https://api.tiendanube.com/v1/${data_user.user_id}/orders/${element}`,{
-          method: 'GET',
+  let ids : any = req.query.id
+  console.log(typeof(ids))
+  let store_data : any
+  
+    const getStoreData = (): Promise<void> => {
+      return new Promise<void>((resolve, reject) => {
+        user_db.get('SELECT user_id, access_token, contacto_tienda, direccion, whatsapp, saldo, metodo_pago FROM users WHERE user_id = ?', [req.query.store], (err, row : any) =>{
+          if (err) {
+            reject(err);
+          } else {
+            if (row) {
+              store_data = {
+                user_id: row.user_id,
+                access_token: row.access_token,
+                contacto_tienda: row.contacto_tienda,
+                direccion: row.direccion,
+                whatsapp: row.whatsapp,
+                saldo: row.saldo,
+                metodo_pago: row.metodo_pago
+              };
+  
+              console.log(store_data);
+              resolve();
+            } else {
+              console.log('No se encontró ninguna fila');
+              resolve();
+            }
+          }
+        });
+      });
+    }
+    getStoreData().then(() => {
+      ids.forEach((e : any) => {
+        fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}`, {
           headers: {
             'Content-Type': 'application/json',
-            'Authentication': `bearer ${data_user.access_token}`,
-            'User-Agent': 'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)'
+            'Authentication': `bearer ${store_data.access_token}`,
+            'User-Agent':
+              'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)',
           }
-      }).then(j => j.json()).then(order => {
-        pedidos.push({
-          vendedor: data_user.user_id,
-          metodo_pago: data_user.metodo_pago,
-          direccion_retiro: data_user.direccion,
-          telefono_retiro: data_user.whatsapp,
-          id: order.id,
-          contact_email: order.contact_email,
-          nombre_cliente: order.contact_name,
-          telefono_cliente: order.contact_phone,
-          costo_envio: order.shipping_cost_owner,
-          direccion: `${order.shipping_address.address} ${order.shipping_address.floor != '0' ? order.shipping_address.floor : ''} ${order.shipping_address.number}, ${order.shipping_address.locality}, `
+        }).then(response => response.json()).then(data =>{
+          user_db.run(
+            `CREATE TABLE IF NOT EXISTS pedidos (
+        fecha_retiro TEXT,
+        id_tienda NUMBER,
+        contacto_tienda TEXT,
+        direccion_tienda TEXT,
+        telefono_tienda TEXT,
+        fecha_entrega TEXT,
+        precio_envio TEXT,
+        nombre_cliente TEXT,
+        direccion_cliente TEXT,
+        telefono_cliente TEXT,
+        observaciones TEXT, 
+        metodo_pago TEXT
+        )`)
+        user_db.run(
+          'INSERT INTO pedidos (fecha_retiro, id_tienda, contacto_tienda, direccion_tienda, telefono_tienda, fecha_entrega, precio_envio, nombre_cliente, direccion_cliente, telefono_cliente, observaciones, metodo_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+          [
+            data.shipping_min_days,
+            store_data.user_id,
+            store_data.contacto_tienda,
+            store_data.direccion,
+            store_data.whatsapp,
+            data.shipping_max_days,
+            data.shipping_cost_owner,
+            data.contact_name,
+            `${data.customer.default_address.address} ${data.customer.default_address.number}, ${data.customer.default_address.floor} ${data.customer.default_address.locality}`,
+            data.contact_phone,
+            data.customer.note,
+            store_data.metodo_pago,
+          ],
+          (error) => {
+            if (error) {
+              console.error(error);
+            }
+          }
+        )
+          console.log(data)
         })
-        valores.push(order.shipping_cost_owner)
       })
-      resolve()
     })
-    }else{
-      res.statusMessage = 'Error'
-      res.sendStatus(500)
-      res.end('Ha habido un error en la carga, no se ha procesado ninguna orden')
-    }
-  
-  })})}
-  calc().then(async () =>{
-    try{
-      await fetch('https://script.google.com/macros/s/AKfycbzXuFtx-xvwzAFRrJAjus-gPQlRC5wWZT28HJEq_P2ZCbbkRKGAayE_AkVDdhPK_-zL/exec', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ordenes : pedidos})
-      })
-      console.log(valores)
-      console.log('///////////////////////////////////////////////////////////')
-      console.log(JSON.stringify({ ordenes: pedidos}))
-      res.end('Pedidos cargados correctamente')
-    }catch(error){
-      console.log(error)
-    }
-  }
-  ).catch(err => res.sendStatus(500))
-
-
 })
+
+
+
+
+
+
+
 
 routes.post("/costos", (req, res) => {
   let req_body = req.body;
