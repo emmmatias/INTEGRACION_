@@ -7,6 +7,7 @@ import fs from 'fs';
 //import fetch from 'node-fetch'; // Ensure you have this installed
 import { json } from "stream/consumers";
 
+let url = "https://vmpk47rv-8000.brs.devtunnels.ms/hook_stores"
 const db_path = path.resolve(__dirname, 'users.db');
 const vista_path = path.resolve(__dirname, '../../../vistas/registro.pug')
 const carrier = {
@@ -112,7 +113,21 @@ class AuthenticationController {
           console.error('Error fetching store data:', fetchError);
           return next(fetchError);
         }
-
+        //creacion de los webhooks para pedidos
+        let webhoock = {
+          url,
+          event:"order/paid"
+        }
+        fetch(`https://api.tiendanube.com/v1/${data.user_id}/webhooks`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authentication': `bearer ${data.access_token}`,
+            'User-Agent': 'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)'
+          },
+          body: JSON.stringify(webhoock)
+        })
+        //fin de la creacion de webhooks
         const insert = `INSERT INTO users (user_id, access_token,contacto_tienda, token_type, scope, saldo, activo, direccion, email, logo, whatsapp, metodo_pago, cp_tienda, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         user_db.run(insert, [
           data.user_id,

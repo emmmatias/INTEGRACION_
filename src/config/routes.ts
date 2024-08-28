@@ -26,6 +26,7 @@ let data: rows
 let row: rows
 let db_precios = path.join(__dirname, '../features/auth/precios.db' )
 let db_path = path.join(__dirname, '../features/auth/users.db' )
+
 const user_db = new sqlite3.Database(db_path, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
   if (err) {
     console.error('Error en la conexión:', err);
@@ -70,9 +71,41 @@ seguimiento TEXT
 res.send('cambio realizado')
 })
 
+//webhooks obligatorios
+routes.post("/hook", (req, res) => {
+  let hook_json = path.join(__dirname, "hook.json")
+  console.log(hook_json)
+  let js = JSON.parse(fs.readFileSync(hook_json, 'utf-8'))
+  fs.writeFileSync(hook_json, js.hooks.push(req.body))
+  res.statusCode = 200
+  res.end('proceso con exito')
+})
 
-//ruta para modificar los estados de envíos
-routes.get('/status', (req, res) =>{
+routes.post("/hook_stores", (req, res) => {
+  let hook_json = path.join(__dirname, "hook.json");
+  console.log(hook_json);
+
+  // Leer el contenido del archivo
+  let data = fs.readFileSync(hook_json, 'utf-8');
+  let js = JSON.parse(data);
+
+  // Agregar el nuevo webhook
+  js.hooks.push(req.body);
+
+  // Escribir el contenido actualizado de vuelta al archivo
+  fs.writeFileSync(hook_json, JSON.stringify(js, null, 2));
+
+  res.status(200).send('Proceso con éxito');
+})
+
+//ruta para modificar los estados de envíos desde GUI
+routes.get('/status_client', (req, res) =>{
+let estados = ["dispatched", "received_by_post_office", "in_transit", "out_for_delivery", "delivery_attempt_failed", "delayed", "ready_for_pickup", "delivered", "returned_to_sender", "lost", "failure"]
+
+})
+
+//ruta para adminitracion
+routes.get("/admin", (req, res)=>{
 
 })
 
