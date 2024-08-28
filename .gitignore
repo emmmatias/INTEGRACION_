@@ -24,4 +24,5 @@ db.json
 *.njsproj
 *.sln
 *.sw?
+.db
 .env
