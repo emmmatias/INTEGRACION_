@@ -1,6 +1,6 @@
 import { response, Router } from "express";
 import passport, { use } from "passport";
-import path from "path";
+import path, { resolve } from "path";
 import { AuthenticationController } from "@features/auth";
 import { ProductController } from "@features/product";
 import  sqlite3 from "sqlite3";
@@ -9,8 +9,12 @@ import csv from 'csv-parser'
 import fs, { access } from 'fs'
 import { json } from "stream/consumers";
 import { arrayBuffer } from "node:stream/consumers";
-
+import { rejects } from "assert";
+import { promises } from "dns";
+let saldo : any = 0
+let valores : Array<number> = []
 interface rows {
+  [x: string]: any;
   user_id: Text,
   access_token: Text,
   metodo_pago: Text,
@@ -43,11 +47,36 @@ user_db.run('UPDATE users set direccion = ?, contacto_tienda = ?, email = ?, wha
 res.send('gracias')
 //res.render('usuario')
 })
-routes.get('/',(req, res) => {
-res.send('hola')
+routes.get('/modif',(req, res) => {
+//user_db.run('UPDATE users set saldo = 0')
+//user_db.run('delete from pedidos')
+//user_db.run('drop table pedidos')
+user_db.run(
+  `CREATE TABLE IF NOT EXISTS pedidos (
+fecha_retiro TEXT,
+id_tienda NUMBER,
+contacto_tienda TEXT,
+direccion_tienda TEXT,
+telefono_tienda TEXT,
+fecha_entrega TEXT,
+precio_envio TEXT,
+nombre_cliente TEXT,
+direccion_cliente TEXT,
+telefono_cliente TEXT,
+observaciones TEXT, 
+metodo_pago TEXT,
+seguimiento TEXT
+)`)
+res.send('cambio realizado')
 })
 
-routes.get("/reservas", (req, res) =>{
+
+//ruta para modificar los estados de envíos
+routes.get('/status', (req, res) =>{
+
+})
+
+routes.get("/reservas", async (req, res) =>{
   console.log(req.query)
   let ids : any = req.query.id
   console.log(typeof(ids))
@@ -66,7 +95,7 @@ routes.get("/reservas", (req, res) =>{
                 contacto_tienda: row.contacto_tienda,
                 direccion: row.direccion,
                 whatsapp: row.whatsapp,
-                saldo: row.saldo,
+                saldo: Number(row.saldo),
                 metodo_pago: row.metodo_pago
               };
   
@@ -80,62 +109,67 @@ routes.get("/reservas", (req, res) =>{
         });
       });
     }
-    getStoreData().then(() => {
-      ids.forEach((e : any) => {
-        fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}`, {
+    
+    let pro = (): Promise<void> => {
+      return  new Promise ((resolve, reject) => {getStoreData().then( async () => {
+        ids.forEach( async (e : any) => {
+          fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authentication': `bearer ${store_data.access_token}`,
+              'User-Agent':
+                'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)',
+            }
+          }).then(response => response.json()).then((data) =>{
+          user_db.run(
+            'INSERT INTO pedidos (fecha_retiro, id_tienda, contacto_tienda, direccion_tienda, telefono_tienda, fecha_entrega, precio_envio, nombre_cliente, direccion_cliente, telefono_cliente, observaciones, metodo_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+            [
+              data.shipping_min_days,
+              store_data.user_id,
+              store_data.contacto_tienda,
+              store_data.direccion,
+              store_data.whatsapp,
+              data.shipping_max_days,
+              data.shipping_cost_owner,
+              data.contact_name,
+              `${data.shipping_address.address} ${data.shipping_address.number}, ${data.shipping_address.floor} ${data.shipping_address.locality}`,
+              data.contact_phone,
+              data.customer.note,
+              store_data.metodo_pago,
+            ],
+            (error) => {
+              if (error) {
+                console.error(error)
+              }
+              //hacer el informe de status de envío
+          let body1 = {
+            shipping_tracking_number: `${data.id}`,
+            shipping_tracking_url: "https://vmpk47rv-8000.brs.devtunnels.ms/seguimiento",
+            notify_customer: true
+        }
+        fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}/fulfill`, {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authentication': `bearer ${store_data.access_token}`,
             'User-Agent':
               'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)',
-          }
-        }).then(response => response.json()).then(data =>{
-          user_db.run(
-            `CREATE TABLE IF NOT EXISTS pedidos (
-        fecha_retiro TEXT,
-        id_tienda NUMBER,
-        contacto_tienda TEXT,
-        direccion_tienda TEXT,
-        telefono_tienda TEXT,
-        fecha_entrega TEXT,
-        precio_envio TEXT,
-        nombre_cliente TEXT,
-        direccion_cliente TEXT,
-        telefono_cliente TEXT,
-        observaciones TEXT, 
-        metodo_pago TEXT
-        )`)
-        user_db.run(
-          'INSERT INTO pedidos (fecha_retiro, id_tienda, contacto_tienda, direccion_tienda, telefono_tienda, fecha_entrega, precio_envio, nombre_cliente, direccion_cliente, telefono_cliente, observaciones, metodo_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-          [
-            data.shipping_min_days,
-            store_data.user_id,
-            store_data.contacto_tienda,
-            store_data.direccion,
-            store_data.whatsapp,
-            data.shipping_max_days,
-            data.shipping_cost_owner,
-            data.contact_name,
-            `${data.customer.default_address.address} ${data.customer.default_address.number}, ${data.customer.default_address.floor} ${data.customer.default_address.locality}`,
-            data.contact_phone,
-            data.customer.note,
-            store_data.metodo_pago,
-          ],
-          (error) => {
-            if (error) {
-              console.error(error);
+          },
+          body: JSON.stringify(body1)
+        }).then(res => res.json()).then(dat => console.log(dat))
+        res.sendFile('../../vistas/')
             }
-          }
-        )
-          console.log(data)
+            
+          )})
+          
         })
-      })
-    })
+
+        resolve()
+      })})
+    }
+    await pro()
+    
 })
-
-
-
-
 
 
 
