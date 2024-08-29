@@ -13,6 +13,9 @@ import { rejects } from "assert";
 import { promises } from "dns";
 let saldo : any = 0
 let valores : Array<number> = []
+let date :any = new Date()
+let mañana =  date.setDate(date.getDate() + 1)
+let pasado_mañana = date.setDate(date.getDate() + 2)
 interface rows {
   [x: string]: any;
   user_id: Text,
@@ -49,25 +52,27 @@ res.send('gracias')
 //res.render('usuario')
 })
 routes.get('/modif',(req, res) => {
-//user_db.run('UPDATE users set saldo = 0')
-//user_db.run('delete from pedidos')
-//user_db.run('drop table pedidos')
-user_db.run(
-  `CREATE TABLE IF NOT EXISTS pedidos (
-fecha_retiro TEXT,
-id_tienda NUMBER,
-contacto_tienda TEXT,
-direccion_tienda TEXT,
-telefono_tienda TEXT,
-fecha_entrega TEXT,
-precio_envio TEXT,
-nombre_cliente TEXT,
-direccion_cliente TEXT,
-telefono_cliente TEXT,
-observaciones TEXT, 
-metodo_pago TEXT,
-seguimiento TEXT
-)`)
+user_db.serialize( () => {
+  //user_db.run('UPDATE users set saldo = 0')
+  //user_db.run('delete from pedidos')
+  //user_db.run('drop table pedidos')
+  user_db.run(
+    `CREATE TABLE IF NOT EXISTS pedidos (
+  fecha_retiro TEXT,
+  id_tienda NUMBER,
+  contacto_tienda TEXT,
+  direccion_tienda TEXT,
+  telefono_tienda TEXT,
+  fecha_entrega TEXT,
+  precio_envio TEXT,
+  nombre_cliente TEXT,
+  direccion_cliente TEXT,
+  telefono_cliente TEXT,
+  observaciones TEXT, 
+  metodo_pago TEXT,
+  seguimiento TEXT
+  )`)
+})
 res.send('cambio realizado')
 })
 
@@ -109,99 +114,94 @@ routes.get("/admin", (req, res)=>{
 
 })
 
-routes.get("/reservas", async (req, res) =>{
-  console.log(req.query)
-  let ids : any = req.query.id
-  console.log(typeof(ids))
-  let store_data : any
-  
-    const getStoreData = (): Promise<void> => {
-      return new Promise<void>((resolve, reject) => {
-        user_db.get('SELECT user_id, access_token, contacto_tienda, direccion, whatsapp, saldo, metodo_pago FROM users WHERE user_id = ?', [req.query.store], (err, row : any) =>{
-          if (err) {
-            reject(err);
-          } else {
-            if (row) {
-              store_data = {
-                user_id: row.user_id,
-                access_token: row.access_token,
-                contacto_tienda: row.contacto_tienda,
-                direccion: row.direccion,
-                whatsapp: row.whatsapp,
-                saldo: Number(row.saldo),
-                metodo_pago: row.metodo_pago
-              };
-  
-              console.log(store_data);
-              resolve();
-            } else {
-              console.log('No se encontró ninguna fila');
-              resolve();
-            }
-          }
-        });
-      });
+routes.post("/reservas", (req, res) =>{
+//obtener la info de cada envío y de la tienda
+//agregarlo a la base de datos
+//enviar el numero de seguimiento
+console.log(req.query)
+let ids : any = req.query.id
+console.log(typeof(ids))
+let store_data : any
+//buscamos la info de la tienda
+user_db.serialize(() => {
+user_db.get('user_id, access_token, contacto_tienda, direccion, whatsapp, saldo, metodo_pago FROM users WHERE user_id = ?', [req.query.store], (error, row : any) =>{
+  //obtenemos los datos de la tienda
+  store_data = {
+    user_id: row.user_id,
+    access_token: row.access_token,
+    contacto_tienda: row.contacto_tienda,
+    direccion: row.direccion,
+    whatsapp: row.whatsapp,
+    saldo: Number(row.saldo),
+    metodo_pago: row.metodo_pago
+  }
+  console.log(store_data)
+
+})})
+//Buscamos la info de cada pedido
+ids.forEach((e : any) => {
+  fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authentication': `bearer ${store_data.access_token}`,
+      'User-Agent':
+        'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)',
     }
-    
-    let pro = (): Promise<void> => {
-      return  new Promise ((resolve, reject) => {getStoreData().then( async () => {
-        ids.forEach( async (e : any) => {
-          fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}`, {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authentication': `bearer ${store_data.access_token}`,
-              'User-Agent':
-                'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)',
-            }
-          }).then(response => response.json()).then((data) =>{
-          user_db.run(
-            'INSERT INTO pedidos (fecha_retiro, id_tienda, contacto_tienda, direccion_tienda, telefono_tienda, fecha_entrega, precio_envio, nombre_cliente, direccion_cliente, telefono_cliente, observaciones, metodo_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-            [
-              data.shipping_min_days,
+  }).then(responce => responce.json()).then(data => {
+    //agregamos los datos de los envios a la tabla de pedidos
+    user_db.serialize(() => {
+      user_db.run(
+        `CREATE TABLE IF NOT EXISTS pedidos (
+      fecha_retiro TEXT,
+      id_tienda NUMBER,
+      contacto_tienda TEXT,
+      direccion_tienda TEXT,
+      telefono_tienda TEXT,
+      fecha_entrega TEXT,
+      precio_envio TEXT,
+      nombre_cliente TEXT,
+      direccion_cliente TEXT,
+      telefono_cliente TEXT,
+      observaciones TEXT, 
+      metodo_pago TEXT,
+      seguimiento TEXT
+      )`)
+      user_db.run(
+            'INSERT INTO pedidos (fecha_retiro, id_tienda, contacto_tienda, direccion_tienda, telefono_tienda, fecha_entrega, precio_envio, nombre_cliente, direccion_cliente, telefono_cliente, observaciones, metodo_pago, seguimiento) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', [
+              mañana,
               store_data.user_id,
               store_data.contacto_tienda,
               store_data.direccion,
               store_data.whatsapp,
-              data.shipping_max_days,
+              pasado_mañana,
               data.shipping_cost_owner,
               data.contact_name,
               `${data.shipping_address.address} ${data.shipping_address.number}, ${data.shipping_address.floor} ${data.shipping_address.locality}`,
               data.contact_phone,
               data.customer.note,
               store_data.metodo_pago,
-            ],
-            (error) => {
-              if (error) {
-                console.error(error)
-              }
-              //hacer el informe de status de envío
-          let body1 = {
-            shipping_tracking_number: `${data.id}`,
-            shipping_tracking_url: "https://vmpk47rv-8000.brs.devtunnels.ms/seguimiento",
-            notify_customer: true
-        }
-        fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}/fulfill`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authentication': `bearer ${store_data.access_token}`,
-            'User-Agent':
-              'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)',
-          },
-          body: JSON.stringify(body1)
-        }).then(res => res.json()).then(dat => console.log(dat))
-        res.sendFile('../../vistas/')
-            }
-            
-          )})
-          
-        })
-
-        resolve()
-      })})
-    }
-    await pro()
-    
+              e])
+    })
+    //enviamos la info del numero de seguimiento por cada pedido
+    fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}/fulfill`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authentication': `bearer ${store_data.access_token}`,
+        'User-Agent':
+          'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)',
+      },
+      body: JSON.stringify({
+        shipping_tracking_number: `${e}`,
+        shipping_tracking_url: "https://vmpk47rv-8000.brs.devtunnels.ms/seguimiento",
+        notify_customer: true
+      })
+    })
+    //luego de la respuiesta a cada pedido
+  })
+//termina el forEach
+})
+//termina la serializacion
 })
 
 
@@ -210,7 +210,7 @@ routes.get("/reservas", async (req, res) =>{
 routes.post("/costos", (req, res) => {
   let req_body = req.body;
   const tomorrow = new Date(new Date().getTime() + (24 * 60 * 60 * 1000))
-  const now = new Date()
+  const pasado_mañana2 = new Date(new Date().getTime() + ((24 * 60 * 60 * 1000) * 3))
   function fecha(t : Date){
   const year = t.getFullYear()
   const month = String(t.getMonth() + 1).padStart(2, '0')
@@ -298,8 +298,8 @@ routes.post("/costos", (req, res) => {
               price_merchant: Number(price),
               currency: "ARS",
               type: "ship",
-              min_delivery_date: fecha(now),
-              max_delivery_date: fecha(tomorrow),
+              min_delivery_date: fecha(tomorrow),
+              max_delivery_date: fecha(pasado_mañana2),
               phone_required: true,
               reference: "ref123"
           }
