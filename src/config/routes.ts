@@ -1,4 +1,5 @@
 import { response, Router } from "express";
+import { fileURLToPath } from "url";
 import passport, { use } from "passport";
 import path, { resolve } from "path";
 import { AuthenticationController } from "@features/auth";
@@ -114,94 +115,105 @@ routes.get("/admin", (req, res)=>{
 
 })
 
-routes.post("/reservas", (req, res) =>{
-//obtener la info de cada envío y de la tienda
-//agregarlo a la base de datos
-//enviar el numero de seguimiento
-console.log(req.query)
-let ids : any = req.query.id
-console.log(typeof(ids))
-let store_data : any
-//buscamos la info de la tienda
-user_db.serialize(() => {
-user_db.get('user_id, access_token, contacto_tienda, direccion, whatsapp, saldo, metodo_pago FROM users WHERE user_id = ?', [req.query.store], (error, row : any) =>{
-  //obtenemos los datos de la tienda
-  store_data = {
-    user_id: row.user_id,
-    access_token: row.access_token,
-    contacto_tienda: row.contacto_tienda,
-    direccion: row.direccion,
-    whatsapp: row.whatsapp,
-    saldo: Number(row.saldo),
-    metodo_pago: row.metodo_pago
-  }
-  console.log(store_data)
-
-})})
-//Buscamos la info de cada pedido
-ids.forEach((e : any) => {
-  fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Authentication': `bearer ${store_data.access_token}`,
-      'User-Agent':
-        'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)',
+routes.get("/reservas", async (req, res) =>{
+  console.log(req.query)
+  let ids : any = req.query.id
+  console.log(typeof(ids))
+  let store_data : any
+  
+    const getStoreData = (): Promise<void> => {
+      return new Promise<void>((resolve, reject) => {
+        user_db.get('SELECT user_id, access_token, contacto_tienda, direccion, whatsapp, saldo, metodo_pago FROM users WHERE user_id = ?', [req.query.store], (err, row : any) =>{
+          if (err) {
+            reject(err);
+          } else {
+            if (row) {
+              store_data = {
+                user_id: row.user_id,
+                access_token: row.access_token,
+                contacto_tienda: row.contacto_tienda,
+                direccion: row.direccion,
+                whatsapp: row.whatsapp,
+                saldo: Number(row.saldo),
+                metodo_pago: row.metodo_pago
+              };
+  
+              console.log(store_data);
+              resolve();
+            } else {
+              console.log('No se encontró ninguna fila');
+              resolve();
+            }
+          }
+        });
+      });
     }
-  }).then(responce => responce.json()).then(data => {
-    //agregamos los datos de los envios a la tabla de pedidos
-    user_db.serialize(() => {
-      user_db.run(
-        `CREATE TABLE IF NOT EXISTS pedidos (
-      fecha_retiro TEXT,
-      id_tienda NUMBER,
-      contacto_tienda TEXT,
-      direccion_tienda TEXT,
-      telefono_tienda TEXT,
-      fecha_entrega TEXT,
-      precio_envio TEXT,
-      nombre_cliente TEXT,
-      direccion_cliente TEXT,
-      telefono_cliente TEXT,
-      observaciones TEXT, 
-      metodo_pago TEXT,
-      seguimiento TEXT
-      )`)
-      user_db.run(
-            'INSERT INTO pedidos (fecha_retiro, id_tienda, contacto_tienda, direccion_tienda, telefono_tienda, fecha_entrega, precio_envio, nombre_cliente, direccion_cliente, telefono_cliente, observaciones, metodo_pago, seguimiento) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', [
-              mañana,
+    
+    let pro = (): Promise<void> => {
+      return  new Promise ((resolve, reject) => {getStoreData().then( async () => {
+        ids.forEach( async (e : any) => {
+          fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authentication': `bearer ${store_data.access_token}`,
+              'User-Agent':
+                'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)',
+            }
+          }).then(response => response.json()).then((data) =>{
+          user_db.run(
+            'INSERT INTO pedidos (fecha_retiro, id_tienda, contacto_tienda, direccion_tienda, telefono_tienda, fecha_entrega, precio_envio, nombre_cliente, direccion_cliente, telefono_cliente, observaciones, metodo_pago) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+            [
+              new Date(mañana).toLocaleDateString(),
               store_data.user_id,
               store_data.contacto_tienda,
               store_data.direccion,
               store_data.whatsapp,
-              pasado_mañana,
+              new Date(pasado_mañana).toLocaleDateString(),
               data.shipping_cost_owner,
               data.contact_name,
               `${data.shipping_address.address} ${data.shipping_address.number}, ${data.shipping_address.floor} ${data.shipping_address.locality}`,
               data.contact_phone,
               data.customer.note,
-              store_data.metodo_pago,
-              e])
+              store_data.metodo_pago
+            ],
+            async (error) => {
+              if (error) {
+                console.error(error)
+              }
+              
+              //hacer el informe de status de envío
+          let body1 = {
+            shipping_tracking_number: `${data.id}`,
+            shipping_tracking_url: "https://vmpk47rv-8000.brs.devtunnels.ms/seguimiento",
+            notify_customer: true
+        }
+        let body2 = JSON.stringify(body1)
+        await fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}/fulfill`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authentication': `bearer ${store_data.access_token}`,
+            'User-Agent':
+              'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)',
+          },
+          body: body2
+        })
+        //res.sendFile('../../vistas/')
+            }
+            
+          )})
+          
+        })
+
+        resolve()
+      })})
+    }
+    await pro().then(()=> {
+      
+      res.sendFile(path.join(__dirname, '../../vistas/confirmacion.html'))
+      
     })
-    //enviamos la info del numero de seguimiento por cada pedido
-    fetch(`https://api.tiendanube.com/v1/${req.query.store}/orders/${e}/fulfill`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authentication': `bearer ${store_data.access_token}`,
-        'User-Agent':
-          'Flash Now Entrepreneurs (emm.matiasacevedosiciliano@gmail.com)',
-      },
-      body: JSON.stringify({
-        shipping_tracking_number: `${e}`,
-        shipping_tracking_url: "https://vmpk47rv-8000.brs.devtunnels.ms/seguimiento",
-        notify_customer: true
-      })
-    })
-    //luego de la respuiesta a cada pedido
-  })
-//termina el forEach
-})
-//termina la serializacion
+    
 })
 
 
