@@ -6,7 +6,7 @@ html
         h1= formTitle
         form#miform(action=formaction, method='post')
             div
-                input(type="text", value=id, name='id' hidden)
+                input#user_id(type="text", value=id, name='id', hidden)
                 label(for='contacto_tienda') contacto_tienda:
                 input#contacto_tienda(type='text', name='contacto_tienda', placeholder='Nombre de la tienda', required)
                 br
@@ -31,7 +31,7 @@ html
                 button(type='submit') Submit
         p Los datos serán utilizados para poder dar de alta su usuario en nuestro sistema, la dirección debe ser la de retiro de los paquetes. Como por ejemplo 'av santa fe 4465, piso, depto, localidad'
     script.
-        let form = document.getElementById('miform')
+        let form = document.getElementById('miform');
 
         function validarNumero(telefono) {
             const regex = /^\+\d{13}$/;
@@ -42,45 +42,69 @@ html
             const emailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
             return emailRegex.test(email);
         }
+
         form.addEventListener('submit', (event) => {
-            event.preventDefault()
-            let validador = 0
-            let metodo_pago = document.querySelector('#metodo_pago').value
-            let telefono = document.querySelector('#telefono').value
-            let whatsapp = document.querySelector('#whatsapp').value
-            let cp_tienda = document.querySelector('#cp_tienda').value
-            let contacto_tienda = document.querySelector('#contacto_tienda').value
-            let direccion = document.querySelector('#direccion').value
-            let email = document.querySelector('#email').value
-    
-            validarNumero(telefono) ? validador = validador + 1 :alert('El numero debe constar comenzar con +549 sin espacios')
-            direccion != 'No definido' && direccion != '' ? validador = validador + 1 :alert('El numero debe constar comenzar con +549 sin espacios')
-            validarNumero(whatsapp) ? validador = validador + 1 :alert('El numero debe constar comenzar con +549 sin espacios')
-            validarEmail(email) ? validador = validador + 1 :alert('El numero debe constar comenzar con +549 sin espacios')
+            event.preventDefault();
             
-            let body = {
-                        telefono,
-                        whatsapp,
-                        metodo_pago,
-                        direccion,
-                        cp_tienda,
-                        contacto_tienda,
-                        email
-                        }
-            console.log(body)
-            if(validador == 4){
+            let validador = 0;
+            let user_id = document.querySelector('#user_id').value
+            let metodo_pago = document.querySelector('#metodo_pago').value;
+            let telefono = document.querySelector('#telefono').value;
+            let whatsapp = document.querySelector('#whatsapp').value;
+            let cp_tienda = document.querySelector('#cp_tienda').value;
+            let contacto_tienda = document.querySelector('#contacto_tienda').value;
+            let direccion = document.querySelector('#direccion').value;
+            let email = document.querySelector('#email').value;
+
+            if (validarNumero(telefono)) {
+                validador++;
+            } else {
+                alert('El número de teléfono debe comenzar con +549 sin espacios');
+            }
+
+            if (direccion != 'No definido' && direccion != '') {
+                validador++;
+            } else {
+                alert('La dirección no puede estar vacía o ser "No definido"');
+            }
+
+            if (validarNumero(whatsapp)) {
+                validador++;
+            } else {
+                alert('El número de WhatsApp debe comenzar con +549 sin espacios');
+            }
+
+            if (validarEmail(email)) {
+                validador++;
+            } else {
+                alert('El email no es válido');
+            }
+            
+            if (validador === 4) {
+                let body = {
+                    id: user_id,
+                    telefono,
+                    whatsapp,
+                    metodo_pago,
+                    direccion,
+                    cp_tienda,
+                    contacto_tienda,
+                    email
+                };
+
                 fetch('/registro', {
                     method: 'POST',
-                    body: JSON.stringify(body)
+                    body: JSON.stringify(body),
                     headers: {
                         'Content-Type': 'application/json'
                     }
                 })
-            }else{
-                alert('Error al enviar el formulario')
+                .catch((error) => {
+                    console.error('Error:', error);
+                    alert('Error al enviar el formulario');
+                });
+            } else {
+                alert('Error al enviar el formulario');
             }
-
-            validador == 4 ? this.submit : alert('Error al enviar el formulario')
-
-            })
+        });
         

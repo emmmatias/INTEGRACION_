@@ -30,6 +30,7 @@ let data: rows
 let row: rows
 let db_precios = path.join(__dirname, '../features/auth/precios.db' )
 let db_path = path.join(__dirname, '../features/auth/users.db' )
+let pedidos_hook = 'https://vmpk47rv-8000.brs.devtunnels.ms/envios_hook'
 
 const user_db = new sqlite3.Database(db_path, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
   if (err) {
@@ -45,13 +46,30 @@ console.log(req.body)
 let direccion = req.body.direccion
 let contacto_tienda = req.body.contacto_tienda
 let user_id = req.body.id
+let cp_tienda = req.body.cp_tienda
+let metodo_pago = req.body.metodo_pago
 let email = req.body.email
 let telefono = req.body.telefono
 let whatsapp = req.body.whatsapp
-user_db.run('UPDATE users set direccion = ?, contacto_tienda = ?, email = ?, whatsapp = ?, phone = ? WHERE user_id = ?', [direccion, contacto_tienda, email, whatsapp, telefono, user_id], (err) => console.error(err))
-res.send('gracias')
+user_db.run('UPDATE users set direccion = ?, cp_tienda = ?, metodo_pago = ?, contacto_tienda = ?, email = ?, whatsapp = ?, phone = ? WHERE user_id = ?', [direccion, cp_tienda, metodo_pago, contacto_tienda, email, whatsapp, telefono, user_id], (err) => {
+  if(err){
+    console.error(err)
+  }else{
+    res.send('gracias')
+  }})
+
 //res.render('usuario')
 })
+
+routes.post('envios_hook', (req, res) => {
+  let id_pedido = req.body
+  console.log(`NUEVO ENVIO DESDE EL HOOK`)
+  console.log(id_pedido)
+  res.statusCode = 200
+  res.end('proceso con exito')
+})
+
+
 routes.get('/modif',(req, res) => {
 user_db.serialize( () => {
   //user_db.run('UPDATE users set saldo = 0')

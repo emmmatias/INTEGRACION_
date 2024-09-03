@@ -1,5 +1,19 @@
 {
-    "hooks":[
-        
-    ]
+  "hooks": [
+    {
+      "store_id": 2956427,
+      "event": "order/paid",
+      "id": 1542193671
+    },
+    {
+      "store_id": 2956427,
+      "event": "order/paid",
+      "id": 1542207328
+    },
+    {
+      "store_id": 2956427,
+      "event": "order/paid",
+      "id": 1542269794
+    }
+  ]
 }

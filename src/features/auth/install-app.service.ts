@@ -1,7 +1,11 @@
 import { tiendanubeAuthClient } from "@config";
 import { BadRequestException } from "@utils";
+
 import { userRepository } from "@repository";
 import { TiendanubeAuthRequest, TiendanubeAuthInterface } from "@features/auth";
+
+
+
 
 class InstallAppService {
   public async install(code: string): Promise<TiendanubeAuthInterface> {
@@ -15,7 +19,8 @@ class InstallAppService {
       grant_type: "authorization_code",
       code: code,
     };
-
+    
+   
     const authenticateResponse = await this.authenticateApp(body);
 
     // This condition will be true when the code has been used or is invalid.
